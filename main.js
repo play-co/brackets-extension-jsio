@@ -17,7 +17,7 @@ define(function (require, exports, module) {
         $("<div class='weeby bee'><div></div></div>").appendTo($('.pane-content')[0]);
     }
 
-    AppInit.appReady(function () {
+    AppInit.htmlReady(function () {
         _addBee();
     });
     ExtensionUtils.loadStyleSheet(module, 'jsio.css');
