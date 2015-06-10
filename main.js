@@ -6,8 +6,7 @@ define(function (require, exports, module) {
     "use strict";
 
     // Brackets modules
-    var EditorManager           = brackets.getModule("editor/EditorManager"),
-        ExtensionUtils          = brackets.getModule("utils/ExtensionUtils"),
+    var ExtensionUtils          = brackets.getModule("utils/ExtensionUtils"),
         AppInit                 = brackets.getModule("utils/AppInit");
 
     /**
