@@ -63,7 +63,7 @@ define(function (require, exports, module) {
             _preferences.set(checkedPrefKey, Boolean(cmd.getChecked()));
         });
         return cmd;
-    };
+    }
 
     AppInit.htmlReady(function () {
         _preferences = PreferencesManager.getExtensionPrefs(preferencesId);
@@ -76,7 +76,7 @@ define(function (require, exports, module) {
             for (var cmdKey in menuData.commands) {
                 var cmdData = menuData.commands[cmdKey];
                 var cmdId = preferencesId + '.' + cmdKey;
-                var cmd = _getCmd(cmdKey, cmdId, cmdData);
+                // var cmd = _getCmd(cmdKey, cmdId, cmdData);
                 // Add it to the menu
                 menu.addMenuItem(cmdId);
             }
