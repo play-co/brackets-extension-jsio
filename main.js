@@ -255,8 +255,9 @@ define(function (require, exports, module) {
         var $runMenu = _makeRunMenu();
         $('#titlebar').append($runMenu);
 
-        // Hide live preview
-        $('#toolbar-go-live').remove();
+        // Hide the right bar
+        $('#main-toolbar')[0].style.display = 'none';
+        $('.main-view .content')[0].style.right = '0';
     });
 
     var moduleUri = module.uri.substring(0, module.uri.lastIndexOf('/'));
