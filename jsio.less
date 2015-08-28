@@ -1,4 +1,13 @@
-@import "../../../styles/brackets_mixins.less";
+.flex-box(@direction: row) {
+  display: -webkit-flex;
+  -webkit-flex-direction: @direction;
+  display: flex;
+  flex-direction: @direction;
+}
+.flex-item(@grow: 0, @shrink: 1, @basis: auto) {
+  -webkit-flex: @grow @shrink @basis;
+  flex: @grow @shrink @basis;
+}
 
 .shadow(@h, @v, @b, @s, @c) {
   -webkit-box-shadow: @h @v @b @s @c;
