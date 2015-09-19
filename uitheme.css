@@ -1,0 +1,43 @@
+
+#working-set-list-container > .working-set-view:last-child {
+  -webkit-box-shadow: inset 0px -6px 10px -8px rgba(0, 0, 0, 0.7);
+     -moz-box-shadow: inset 0px -6px 10px -8px rgba(0, 0, 0, 0.7);
+          box-shadow: inset 0px -6px 10px -8px rgba(0, 0, 0, 0.7);
+}
+
+.working-set-view,
+.working-set-view .working-set-header {
+  background-color: #586B84;
+  color: #EBEEF1;
+}
+
+.working-set-view .working-set-header-title {
+  background: inherit;
+}
+
+#project-files-header {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#sidebar {
+  background-color: #435264;
+  color: #98A6B7;
+}
+
+.sidebar-selection,
+.filetree-selection {
+    /* Selected file or folder */
+    background: #1F2B36;
+}
+
+#sidebar #project-dropdown-toggle {
+  background: #353E4D;
+}
+
+.jstree-brackets li > a:focus {
+  box-shadow: none;
+}
+
+.filetree-selection-extension {
+  background-color: #718398;
+}

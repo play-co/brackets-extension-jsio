@@ -258,6 +258,9 @@ define(function (require, exports, module) {
         // Hide the right bar
         $('#main-toolbar')[0].style.display = 'none';
         $('.main-view .content')[0].style.right = '0';
+
+        // Add the custom ui theme
+        $("body").append('<link rel="stylesheet" href="' + ExtensionUtils.getModulePath(module) + 'uitheme.css">');
     });
 
     var moduleUri = module.uri.substring(0, module.uri.lastIndexOf('/'));
