@@ -19,6 +19,8 @@ define(function (require, exports, module) {
     var preferencesId = 'jsio';
     var _preferences;
 
+    var LSKEY = 'bracketsExtensionJsio.';
+
     function _getCmd(cmdKey, cmdId,  cmdData) {
         var checkedPrefKey = cmdId + '.checked';
         // Register the command
@@ -83,6 +85,37 @@ define(function (require, exports, module) {
             return;
         }
     });
+
+    function setRunTarget(target) {
+        window.localStorage[LSKEY + 'runTarget'] = target;
+        postmessageRunTarget();
+    }
+
+    function postmessageRunTarget() {
+        var target = window.localStorage[LSKEY + 'runTarget'];
+        if (target) {
+            _postMessage({
+                target: 'simulator',
+                action: 'setTarget',
+                runTarget: target
+            });
+        }
+    }
+
+    /** Return the TARGET object currently set by localstorage */
+    function getSelectedTarget() {
+        var target = window.localStorage[LSKEY + 'runTarget'];
+        if (!target) {
+            return null;
+        }
+        for (var i = 0; i < TARGETS.length; i++) {
+            var testTarget = TARGETS[i];
+            if (testTarget.id === target) {
+                return testTarget;
+            }
+        }
+        return null;
+    }
 
     function _makeRunMenu() {
         var targetListItem = React.createFactory(React.createClass({
@@ -165,9 +198,10 @@ define(function (require, exports, module) {
 
         var dropdown = React.createFactory(React.createClass({
             getInitialState: function () {
+                var selectedTarget = getSelectedTarget();
                 return {
                     open: false,
-                    selectedItem: this.props.items[0]
+                    selectedItem: selectedTarget || this.props.items[0]
                 };
             },
 
@@ -176,11 +210,7 @@ define(function (require, exports, module) {
                     selectedItem: item,
                     open: false
                 });
-                _postMessage({
-                    target: 'simulator',
-                    action: 'setTarget',
-                    runTarget: item.id
-                });
+                setRunTarget(item.id);
             },
 
             _documentClickListener: function(e) {
@@ -266,4 +296,6 @@ define(function (require, exports, module) {
     var moduleUri = module.uri.substring(0, module.uri.lastIndexOf('/'));
     ExtensionUtils.addLinkedStyleSheet(moduleUri + '/fontawesome/css/font-awesome.css');
     ExtensionUtils.loadStyleSheet(module, 'jsio.less');
+    // Prime the parent app with the saved run target
+    postmessageRunTarget();
 });
