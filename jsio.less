@@ -15,9 +15,28 @@
   box-shadow:         @h @v @b @s @c;
 }
 
+@stop-btn-color          : #2F7EFD;
+@stop-btn-color-bg       : #FFFFFF;
+@stop-btn-color-bg-hover : #E0ECFF;
+
+@start-btn-color          : #FFFFFF;
+@start-btn-color-bg       : #2f7efd;
+@start-btn-color-bg-hover : #478EFF;
+
+@target-list-item-color          : #3c3c3c;
+@target-list-item-color-bg       : #FFFFFF;
+@target-list-item-color-bg-hover : #E9F1FF;
+@target-list-item-color-selected : #297ffa;
+
+@target-list-spacer-color: #D7E7FF;
+
+@target-list-status-unavailable : #EF6C6C;
+@target-list-status-available   : #70DA70;
+@target-list-status-occupied    : #EFAD2E;
+
 .jsio {
   &.nav {
-      float: right;
+    float: right;
   }
 }
 
@@ -33,13 +52,34 @@
     border-radius: 6px;
     background-color: #435265;
 
-    .selected-run {
-      padding: 4px 12px;
-      color: #fff;
-      background-color: #2f7efd;
+    .selected-run, .selected-stop {
       position: relative;
       font-weight: bold;
       cursor: pointer;
+    }
+
+    .selected-stop {
+      font-size: 34px;
+      line-height: 12px;
+      background-color: @stop-btn-color-bg;
+      color: @stop-btn-color;
+      border: 1px solid @stop-btn-color;
+      border-radius: 5px 0px 0px 5px;
+      padding: 4px 8px;
+
+      &:hover {
+        background-color: @stop-btn-color-bg-hover;
+      }
+    }
+
+    .selected-run {
+      padding: 4px 12px;
+      color: @start-btn-color;
+      background-color: @start-btn-color-bg;
+
+      &:hover {
+        background-color: @start-btn-color-bg-hover;
+      }
 
       &:after {
         content: '';
@@ -72,8 +112,8 @@
   .target-list {
     .shadow(0px, 0px, 13px, -1px, rgba(0,0,0,0.75));
     list-style-type: none;
-    background-color: #fff;
-    color: #3c3c3c;
+    background-color: @target-list-item-color-bg;
+    color: @target-list-item-color;
     border-radius: 2px;
     text-align: left;
     padding: 6px;
@@ -81,17 +121,23 @@
 
     .target-list-item {
       .flex-box();
-      margin: 10px 0px;
+      padding: 10px 6px;
       cursor: pointer;
 
+      &:hover {
+        background-color: @target-list-item-color-bg-hover;
+      }
+
       &.selected {
-        color: #297ffa;
+        color: @target-list-item-color-selected;
       }
 
       .icon, .selected-icon {
         .flex-item(0, 0);
         width: 20px;
         text-align: center;
+        position: relative;
+        top: 2px;
       }
 
       .icon {
@@ -105,6 +151,21 @@
       .name {
         .flex-item(1, 1);
       }
+
+      &.status-unavailable .status-icon {
+        color: @target-list-status-unavailable;
+      }
+      &.status-available .status-icon {
+        color: @target-list-status-available;
+      }
+      &.status-occupied .status-icon {
+        color: @target-list-status-occupied;
+      }
+    }
+
+    .spacer {
+      background-color: @target-list-spacer-color;
+      height: 1px;
     }
   }
 }

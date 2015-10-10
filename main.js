@@ -11,15 +11,16 @@ define(function (require, exports, module) {
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
         React               = brackets.getModule("thirdparty/react");
 
+    var LSKEY = 'bracketsExtensionJsio.';
     var TARGETS = [
         { id: 'local', name: 'Simulator', icon: 'desktop' },
-        { id: 'remote', name: 'Remote Device', icon: 'wifi' }
+        { id: 'remote', name: 'Add Remote Device', icon: 'plus' }
     ];
 
     var preferencesId = 'jsio';
     var _preferences;
 
-    var LSKEY = 'bracketsExtensionJsio.';
+    var listItems; // populated below
 
     function _getCmd(cmdKey, cmdId,  cmdData) {
         var checkedPrefKey = cmdId + '.checked';
@@ -58,9 +59,9 @@ define(function (require, exports, module) {
 
         if (callback) {
             var requestId = 'brackets_' + _messageCallbackId;
-            data._requestId = requestId;
-
             _messageCallbackId++;
+
+            data._requestId = requestId;
             _messageCallbacks[requestId] = callback;
         }
 
@@ -74,17 +75,87 @@ define(function (require, exports, module) {
         }
         if (!data._jsio) { return; }
 
+        // If this message is targeting a callback
         if (data._responseId !== undefined) {
-            var callback = _messageCallbacks[data.responseId];
+            var callback = _messageCallbacks[data._responseId];
             if (!callback) {
                 throw new Error('No callback registered for: ' + data._responseId);
             }
-            _messageCallbacks[data.responseId] = undefined;
+            _messageCallbacks[data._responseId] = undefined;
 
             callback(data);
             return;
         }
+        // Otherwise handle it
+        else if (data.action === 'addRunTarget') {
+            addRunTarget(data.runTarget);
+        }
+        else if (data.action === 'removeRunTarget') {
+            removeRunTarget(data.runTarget);
+        }
+        else if (data.action === 'updateRunTarget') {
+            updateRunTarget(data.runTarget);
+        }
     });
+
+    // ------------------ ------------------ ------------------
+
+    function addRunTarget(target) {
+        if (!target.id) {
+            console.error('error adding run target', target);
+            throw new Error('run targets require a unique id');
+        }
+        if (getRunTargetById(target.id) !== null) {
+            console.error('error adding run target', target);
+            throw new Error('run targets require a unique id (one already exists)');
+        }
+
+        if (!target.name) {
+            target.name = target.id;
+        }
+
+        listItems.splice(listItems.length - 1, 0, target);
+    }
+
+    /** only checks for matching id's */
+    function removeRunTarget(target) {
+        if (!target.id) {
+            console.error('error removing run target', target);
+            throw new Error('run targets require a unique id');
+        }
+
+        for (var i = listItems.length - 1; i >= 0; i--) {
+            if (listItems[i].id === target.id) {
+                listItems.splice(i, 1);
+            }
+        }
+    }
+
+    /** only checks for matching id's */
+    function updateRunTarget(target) {
+        if (!target.id) {
+            console.error('error updating run target', target);
+            throw new Error('run targets require a unique id');
+        }
+
+        var targetTarget = getRunTargetById(target.id);
+        if (!targetTarget) {
+            console.error('error updating run target', target);
+            throw new Error('could not find run target with specified id');
+        }
+
+        targetTarget.status = target.status;
+    }
+
+    function getRunTargetById(targetId) {
+        for (var i = listItems.length - 1; i >= 0; i--) {
+            var testTarget = listItems[i];
+            if (testTarget.id === targetId) {
+                return testTarget;
+            }
+        }
+        return null;
+    }
 
     function setRunTarget(target) {
         window.localStorage[LSKEY + 'runTarget'] = target;
@@ -117,6 +188,30 @@ define(function (require, exports, module) {
         return null;
     }
 
+    function initJsioConnection() {
+        // Prime the parent app with the saved run target
+        postmessageRunTarget();
+
+        // These will be the actual items displayed in the list
+        listItems = TARGETS.splice(0);
+        // Add a spacer after the local run target
+        listItems.splice(1, 0, { spacer: true });
+
+        // Request a list of available run targets to populate our list with
+        _postMessage({
+            target: 'simulator',
+            action: 'getRunTargetList'
+        }, function(data) {
+            // Update the displayed list
+            if (!Array.isArray(data.runTargetList)) {
+                console.error('error while consuming getRunTargetList response');
+                throw new Error('runTargetList must be array');
+            }
+
+            data.runTargetList.forEach(addRunTarget);
+        });
+    }
+
     function _makeRunMenu() {
         var targetListItem = React.createFactory(React.createClass({
             render: function() {
@@ -129,20 +224,42 @@ define(function (require, exports, module) {
                     selectedIcon = 'fa fa-check';
                 }
 
-                return React.DOM.li({
-                    onClick: this.handleClick,
-                    className: className
-                }, [
-                    React.DOM.div({
-                        className: 'icon fa fa-' + item.icon
-                    }),
+                if (item.status) {
+                    className += ' status-' + item.status;
+
+                    if (!item.icon) {
+                        item.icon = 'circle status-icon';
+                    }
+                }
+
+                var itemChildren = [
                     React.DOM.div({
                         className: 'name'
                     }, item.name),
                     React.DOM.div({
                         className: 'selected-icon ' + selectedIcon
                     })
-                ]);
+                ];
+
+                if (item.icon) {
+                    itemChildren.unshift(
+                        React.DOM.div({
+                            className: 'icon fa fa-' + item.icon
+                        })
+                    );
+                } else {
+                    // Want to keep things in the right position
+                    itemChildren.unshift(
+                        React.DOM.div({
+                            className: 'icon icon-spacer'
+                        })
+                    );
+                }
+
+                return React.DOM.li({
+                    onClick: this.handleClick,
+                    className: className
+                }, itemChildren);
             },
 
             handleClick: function(e) {
@@ -161,11 +278,17 @@ define(function (require, exports, module) {
             },
 
             renderItem: function(item) {
-                return targetListItem({
-                    item: item,
-                    selected: this.props.selectedItem === item,
-                    doSelectItem: this.props.doSelectItem
-                });
+                if (item.spacer) {
+                    return React.DOM.li({
+                        className: 'spacer'
+                    })
+                } else {
+                    return targetListItem({
+                        item: item,
+                        selected: this.props.selectedItem === item,
+                        doSelectItem: this.props.doSelectItem
+                    });
+                }
             }
         }));
 
@@ -184,6 +307,10 @@ define(function (require, exports, module) {
                 return React.DOM.div({
                     className: 'selected-container'
                 }, [
+                    React.DOM.div({
+                        className: 'selected-stop',
+                        onClick: this.props.doStop
+                    }, '■'),
                     React.DOM.div({
                         className: 'selected-run',
                         onClick: this.props.doRun
@@ -249,12 +376,21 @@ define(function (require, exports, module) {
                 });
             },
 
+            doStop: function(evt) {
+                _postMessage({
+                    target: 'simulator',
+                    action: 'stop',
+                    runTarget: this.state.selectedItem.id
+                });
+            },
+
             render: function() {
                 var children = [
                     selectedItem({
                         selectedItem: this.state.selectedItem,
                         doToggleOpen: this.doToggleOpen,
-                        doRun: this.doRun
+                        doRun: this.doRun,
+                        doStop: this.doStop
                     })
                 ];
                 if (this.state.open) {
@@ -271,14 +407,18 @@ define(function (require, exports, module) {
             }
         }));
 
+        // Make the element that react will render in to
         var $e = $('<div>');
         $e.addClass('jsio jsio-run-target');
         React.render(dropdown({
-            items: TARGETS,
+            items: listItems,
             selectedItem: TARGETS[0]
         }), $e[0]);
         return $e;
     }
+
+    // Sync up with the parent jsio app
+    initJsioConnection();
 
     AppInit.htmlReady(function () {
         _preferences = PreferencesManager.getExtensionPrefs(preferencesId);
@@ -297,6 +437,5 @@ define(function (require, exports, module) {
     var moduleUri = module.uri.substring(0, module.uri.lastIndexOf('/'));
     ExtensionUtils.addLinkedStyleSheet(moduleUri + '/fontawesome/css/font-awesome.css');
     ExtensionUtils.loadStyleSheet(module, 'jsio.less');
-    // Prime the parent app with the saved run target
-    postmessageRunTarget();
+
 });
