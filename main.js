@@ -240,11 +240,12 @@ define(function (require, exports, module) {
                 }
             },
 
-            doRun: function() {
+            doRun: function(evt) {
                 _postMessage({
                     target: 'simulator',
                     action: 'run',
-                    runTarget: this.state.selectedItem.id
+                    runTarget: this.state.selectedItem.id,
+                    newWindow: evt.metaKey
                 });
             },
 
