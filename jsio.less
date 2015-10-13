@@ -18,10 +18,14 @@
 @stop-btn-color          : #2F7EFD;
 @stop-btn-color-bg       : #FFFFFF;
 @stop-btn-color-bg-hover : #E0ECFF;
+@stop-btn-color-disabled    : #416092;
+@stop-btn-color-bg-disabled : #AAAAAA;
 
 @start-btn-color          : #FFFFFF;
 @start-btn-color-bg       : #2f7efd;
 @start-btn-color-bg-hover : #478EFF;
+@start-btn-color-disabled    : #CACACA;
+@start-btn-color-bg-disabled : #728EBB;
 
 @target-list-item-color          : #3c3c3c;
 @target-list-item-color-bg       : #FFFFFF;
@@ -70,6 +74,12 @@
       &:hover {
         background-color: @stop-btn-color-bg-hover;
       }
+
+      &[disabled] {
+        color: @stop-btn-color-disabled;
+        background-color: @stop-btn-color-bg-disabled;
+        cursor: default;
+      }
     }
 
     .selected-run {
@@ -79,6 +89,12 @@
 
       &:hover {
         background-color: @start-btn-color-bg-hover;
+      }
+
+      &[disabled] {
+        color: @start-btn-color-disabled;
+        background-color: @start-btn-color-bg-disabled;
+        cursor: default;
       }
 
       &:after {

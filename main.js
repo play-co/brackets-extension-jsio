@@ -11,15 +11,19 @@ define(function (require, exports, module) {
         PreferencesManager  = brackets.getModule("preferences/PreferencesManager"),
         React               = brackets.getModule("thirdparty/react");
 
+    var io = require('deps/socket.io');
+    require('deps/DevkitRemoteAPI');
+
     var LSKEY = 'bracketsExtensionJsio.';
     var TARGETS = [
-        { id: 'local', name: 'Simulator', icon: 'desktop' },
-        { id: 'remote', name: 'Add Remote Device', icon: 'plus' }
+        { UUID: 'local', name: 'Simulator', icon: 'desktop', postMessage: true },
+        { UUID: 'remote', name: 'Add Remote Device', icon: 'plus', postMessage: true }
     ];
 
     var preferencesId = 'jsio';
     var _preferences;
 
+    var reactDropdown;
     var listItems; // populated below
 
     function _getCmd(cmdKey, cmdId,  cmdData) {
@@ -86,71 +90,81 @@ define(function (require, exports, module) {
             callback(data);
             return;
         }
-        // Otherwise handle it
-        else if (data.action === 'addRunTarget') {
-            addRunTarget(data.runTarget);
-        }
-        else if (data.action === 'removeRunTarget') {
-            removeRunTarget(data.runTarget);
-        }
-        else if (data.action === 'updateRunTarget') {
-            updateRunTarget(data.runTarget);
-        }
     });
 
     // ------------------ ------------------ ------------------
 
-    function addRunTarget(target) {
-        if (!target.id) {
-            console.error('error adding run target', target);
-            throw new Error('run targets require a unique id');
+    /**
+     * @param  {Object}  targetInfo
+     * @param  {String}  targetInfo.UUID
+     * @param  {String}  targetInfo.name
+     * @return {Object}  newRunTarget
+     */
+    function addRunTarget(targetInfo) {
+        if (!targetInfo.UUID) {
+            console.error('error adding run target', targetInfo);
+            throw new Error('run targets require a UUID');
         }
-        if (getRunTargetById(target.id) !== null) {
-            console.error('error adding run target', target);
-            throw new Error('run targets require a unique id (one already exists)');
+        if (getRunTargetById(targetInfo.UUID) !== null) {
+            console.error('error adding run target', targetInfo);
+            throw new Error('run targets require a UUID (one already exists)');
         }
 
-        if (!target.name) {
-            target.name = target.id;
-        }
+        var newTarget = {
+            UUID: targetInfo.UUID,
+            name: targetInfo.name || targetInfo.UUID,
+            status: targetInfo.status || 'unavailable'
+        };
 
-        listItems.splice(listItems.length - 1, 0, target);
+        listItems.splice(listItems.length - 1, 0, newTarget);
+        reactDropdown && reactDropdown.forceUpdate();
+
+        return newTarget;
     }
 
     /** only checks for matching id's */
-    function removeRunTarget(target) {
-        if (!target.id) {
-            console.error('error removing run target', target);
-            throw new Error('run targets require a unique id');
-        }
-
+    function removeRunTarget(targetUUID) {
         for (var i = listItems.length - 1; i >= 0; i--) {
-            if (listItems[i].id === target.id) {
+            if (listItems[i].UUID === targetUUID) {
                 listItems.splice(i, 1);
             }
         }
+
+        validateCurrentSelection();
+        reactDropdown && reactDropdown.forceUpdate();
     }
 
-    /** only checks for matching id's */
-    function updateRunTarget(target) {
-        if (!target.id) {
-            console.error('error updating run target', target);
-            throw new Error('run targets require a unique id');
+    /**
+     * Will create a new run target with this UUID if one does not already exist
+     * @param  {Object}  targetInfo
+     * @param  {String}  targetInfo.UUID
+     * @param  {String}  [targetInfo.name]
+     * @param  {String}  [targetInfo.status]
+     */
+    function updateRunTarget(targetInfo) {
+        if (!targetInfo.UUID) {
+            console.error('error updating run target', targetInfo);
+            throw new Error('run targets require a UUID');
         }
 
-        var targetTarget = getRunTargetById(target.id);
+        var targetTarget = getRunTargetById(targetInfo.UUID);
         if (!targetTarget) {
-            console.error('error updating run target', target);
-            throw new Error('could not find run target with specified id');
+            targetTarget = addRunTarget(targetInfo);
         }
 
-        targetTarget.status = target.status;
+        targetTarget.status = targetInfo.status;
+        if (targetInfo.name) {
+            targetTarget.name = targetInfo.name;
+        }
+
+        validateCurrentSelection();
+        reactDropdown && reactDropdown.forceUpdate();
     }
 
     function getRunTargetById(targetId) {
         for (var i = listItems.length - 1; i >= 0; i--) {
             var testTarget = listItems[i];
-            if (testTarget.id === targetId) {
+            if (testTarget.UUID === targetId) {
                 return testTarget;
             }
         }
@@ -160,6 +174,16 @@ define(function (require, exports, module) {
     function setRunTarget(target) {
         window.localStorage[LSKEY + 'runTarget'] = target;
         postmessageRunTarget();
+    }
+
+    function validateCurrentSelection() {
+        // Validate the currect selection (and select simulator if the current selection is no longer valid)
+        /*var target = reactDropdown.state.selectedItem;
+        if (target.status === 'unavailable' || listItems.indexOf(target) === -1) {
+            reactDropdown.setState({
+                selectedItem: listItems[0]
+            });
+        }*/
     }
 
     function postmessageRunTarget() {
@@ -181,34 +205,60 @@ define(function (require, exports, module) {
         }
         for (var i = 0; i < TARGETS.length; i++) {
             var testTarget = TARGETS[i];
-            if (testTarget.id === target) {
+            if (testTarget.UUID === target) {
                 return testTarget;
             }
         }
         return null;
     }
 
-    function initJsioConnection() {
-        // Prime the parent app with the saved run target
-        postmessageRunTarget();
-
+    function resetListItems() {
         // These will be the actual items displayed in the list
-        listItems = TARGETS.splice(0);
+        listItems = TARGETS.slice(0);
         // Add a spacer after the local run target
         listItems.splice(1, 0, { spacer: true });
 
-        // Request a list of available run targets to populate our list with
-        _postMessage({
-            target: 'simulator',
-            action: 'getRunTargetList'
-        }, function(data) {
-            // Update the displayed list
-            if (!Array.isArray(data.runTargetList)) {
+        // Need to make sure our dropdown is referencing the right array
+        if (reactDropdown) {
+            reactDropdown.setProps({
+                items: listItems
+            });
+        }
+    }
+
+    function initJsioConnection() {
+        // Prime the parent app with the saved run target
+        postmessageRunTarget();
+        resetListItems();
+
+        var RemoteAPI = GC.RemoteAPI;
+        // TODO: fix this
+        var socketUrl = 'wss://devkit-joeorg.dev-js.io/companion/remotesocket/ui';
+        RemoteAPI.init(socketUrl, {
+            io: io
+        });
+
+        RemoteAPI.on('connectionStatus', function(data) {
+            if (data.connected) {
+                RemoteAPI.send('requestRunTargetList');
+            }
+        });
+
+        RemoteAPI.on('runTargetList', function(data) {
+            if (!Array.isArray(data.runTargets)) {
                 console.error('error while consuming getRunTargetList response');
-                throw new Error('runTargetList must be array');
+                return;
             }
 
-            data.runTargetList.forEach(addRunTarget);
+            resetListItems();
+            data.runTargets.forEach(addRunTarget);
+        });
+
+        RemoteAPI.on('removeRunTarget', function(data) {
+            removeRunTarget(data.UUID);
+        });
+        RemoteAPI.on('updateRunTarget', function(data) {
+            updateRunTarget(data.runTargetInfo);
         });
     }
 
@@ -258,14 +308,17 @@ define(function (require, exports, module) {
 
                 return React.DOM.li({
                     onClick: this.handleClick,
-                    className: className
+                    className: className,
+                    title: item.UUID
                 }, itemChildren);
             },
 
             handleClick: function(e) {
                 e.stopPropagation();
                 e.nativeEvent.stopImmediatePropagation();
-                this.props.doSelectItem(this.props.item);
+
+                var item = this.props.item;
+                this.props.doSelectItem(item);
             }
         }));
 
@@ -299,9 +352,12 @@ define(function (require, exports, module) {
                 this.props.doToggleOpen();
             },
             render: function(item) {
+                var selectedItem = this.props.selectedItem;
+
                 var selectedItemName = '<none>';
-                if (this.props.selectedItem) {
-                    selectedItemName = this.props.selectedItem.name;
+
+                if (selectedItem) {
+                    selectedItemName = selectedItem.name;
                 }
 
                 return React.DOM.div({
@@ -309,11 +365,13 @@ define(function (require, exports, module) {
                 }, [
                     React.DOM.div({
                         className: 'selected-stop',
-                        onClick: this.props.doStop
+                        onClick: this.props.doStop,
+                        disabled: selectedItem && selectedItem.status !== 'occupied'
                     }, '■'),
                     React.DOM.div({
                         className: 'selected-run',
-                        onClick: this.props.doRun
+                        onClick: this.props.doRun,
+                        disabled: selectedItem && selectedItem.status === 'unavailable'
                     }, '▶ Run'),
                     React.DOM.div({
                         className: 'selected-item',
@@ -333,11 +391,24 @@ define(function (require, exports, module) {
             },
 
             doSelectItem: function(item) {
+                // Special case for remote (fire the run immediately)
+                if (item.UUID === 'remote') {
+                    _postMessage({
+                        target: 'simulator',
+                        action: 'run',
+                        runTarget: 'remote'
+                    });
+                    this.setState({
+                        open: false
+                    });
+                    return;
+                }
+
                 this.setState({
                     selectedItem: item,
                     open: false
                 });
-                setRunTarget(item.id);
+                setRunTarget(item.UUID);
             },
 
             _documentClickListener: function(e) {
@@ -367,21 +438,49 @@ define(function (require, exports, module) {
                 }
             },
 
+            /**
+             * @param  {MouseEvent} [evt]
+             */
             doRun: function(evt) {
-                _postMessage({
-                    target: 'simulator',
-                    action: 'run',
-                    runTarget: this.state.selectedItem.id,
-                    newWindow: evt.metaKey
-                });
+                if (evt && evt.target.hasAttribute('disabled')) {
+                    return;
+                }
+
+                var runTarget = this.state.selectedItem;
+                if (runTarget.postMessage) {
+                    _postMessage({
+                        target: 'simulator',
+                        action: 'run',
+                        runTarget: runTarget.UUID,
+                        newWindow: evt && evt.metaKey
+                    });
+                } else {
+                    GC.RemoteAPI.send('run', {
+                        runTargetUUID: runTarget.UUID
+                    });
+                }
             },
 
+            /**
+             * @param  {MouseEvent} [evt]
+             */
             doStop: function(evt) {
-                _postMessage({
-                    target: 'simulator',
-                    action: 'stop',
-                    runTarget: this.state.selectedItem.id
-                });
+                if (evt && evt.target.hasAttribute('disabled')) {
+                    return;
+                }
+
+                var runTarget = this.state.selectedItem;
+                if (runTarget.postMessage) {
+                    _postMessage({
+                        target: 'simulator',
+                        action: 'stop',
+                        runTarget: runTarget.UUID
+                    });
+                } else {
+                    GC.RemoteAPI.send('stop', {
+                        runTargetUUID: runTarget.UUID
+                    });
+                }
             },
 
             render: function() {
@@ -410,9 +509,8 @@ define(function (require, exports, module) {
         // Make the element that react will render in to
         var $e = $('<div>');
         $e.addClass('jsio jsio-run-target');
-        React.render(dropdown({
-            items: listItems,
-            selectedItem: TARGETS[0]
+        reactDropdown = React.render(dropdown({
+            items: listItems
         }), $e[0]);
         return $e;
     }
