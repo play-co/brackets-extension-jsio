@@ -67,6 +67,10 @@
     }
   };
 
+  this.isConnected = function() {
+    return _socket && _socket.connected;
+  };
+
   this.on = function (message, cb) {
     if (!_handlers[message]) {
       _handlers[message] = [];

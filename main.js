@@ -242,6 +242,7 @@ define(function (require, exports, module) {
             if (data.connected) {
                 RemoteAPI.send('requestRunTargetList');
             }
+            reactDropdown && reactDropdown.forceUpdate();
         });
 
         RemoteAPI.on('runTargetList', function(data) {
@@ -360,9 +361,7 @@ define(function (require, exports, module) {
                     selectedItemName = selectedItem.name;
                 }
 
-                return React.DOM.div({
-                    className: 'selected-container'
-                }, [
+                var children = [
                     React.DOM.div({
                         className: 'selected-stop',
                         onClick: this.props.doStop,
@@ -377,7 +376,17 @@ define(function (require, exports, module) {
                         className: 'selected-item',
                         onClick: this.handleClick
                     }, selectedItemName)
-                ]);
+                ];
+
+                if (!GC.RemoteAPI.isConnected()) {
+                    children.push(React.DOM.div({
+                        className: 'connection-overlay'
+                    }, 'Waiting for devkit'));
+                }
+
+                return React.DOM.div({
+                    className: 'selected-container'
+                }, children);
             }
         }));
 
